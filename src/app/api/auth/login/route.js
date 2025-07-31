@@ -62,6 +62,9 @@ export async function POST(request) {
       username: user.username,
       isEmailVerified: user.isEmailVerified,
       role: user.role,
+      phone: user.phone,
+      address: user.address,
+      createdAt: user.createdAt,
     };
 
     const token = jwt.sign(
@@ -80,6 +83,9 @@ export async function POST(request) {
         username: user.username,
         isEmailVerified: user.isEmailVerified,
         role: user.role,
+        phone: user.phone,
+        address: user.address,
+        createdAt: user.createdAt,
       },
     });
 

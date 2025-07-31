@@ -1,8 +1,11 @@
+"use client";
+
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { SearchProvider } from "@/contexts/SearchContext";
+import { withAdminAuth } from "@/contexts/AuthContext";
 
-export default function AdminLayout({ children }) {
+function AdminLayout({ children }) {
   return (
     <SearchProvider>
       <div className="flex bg-background">
@@ -16,3 +19,5 @@ export default function AdminLayout({ children }) {
     </SearchProvider>
   );
 }
+
+export default withAdminAuth(AdminLayout);

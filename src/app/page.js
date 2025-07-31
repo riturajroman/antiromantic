@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -19,47 +20,7 @@ function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Anti-Romantic</h1>
-
-            <div className="flex items-center space-x-4">
-              {isAuthenticated ? (
-                <>
-                  <span className="text-gray-700">
-                    Welcome, {user.username}!
-                  </span>
-                  <Link href="/dashboard">
-                    <Button variant="outline" size="sm">
-                      Dashboard
-                    </Button>
-                  </Link>
-                  <Button
-                    onClick={logout}
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 border-red-600 hover:bg-red-50"
-                  >
-                    Logout
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login">
-                    <Button variant="outline" size="sm">
-                      Login
-                    </Button>
-                  </Link>
-                  <Link href="/sign-in">
-                    <Button size="sm">Sign Up</Button>
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
