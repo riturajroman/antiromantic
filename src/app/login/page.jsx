@@ -22,7 +22,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-function SignInPage() {
+function LogInPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -47,29 +47,16 @@ function SignInPage() {
     console.log("Form Data:", data);
     try {
       setLoading(true);
-      const signInResponse = await axios.post(`/api/signin`, data);
-      if (!signInResponse.data.success) {
-        throw new Error(signInResponse.data.message);
-      }
-      form.reset();
-      toast.success("Account created successfully!");
-      toast.success("Please verify your email");
-      router.push(`/verify-otp?email=${data.email}`);
     } catch (error) {
-      if (error.response && error.response.data) {
-        toast.error(error.response.data.message || "Registration failed");
-      } else {
-        toast.error(error.message || "Something went wrong");
-      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <section className="relative z-0 py-14">
+    <section className="relative z-0 py-14 bg-[url('/bg-img.png')] bg-cover bg-center bg-no-repeat">
       <div className="container">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="flex items-start justify-start">
             <Image
               src="/sign-in.png"
@@ -106,7 +93,7 @@ function SignInPage() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="mb-1 text-base text-text">
+                        <FormLabel className="mb-3 text-base text-text">
                           Email
                         </FormLabel>
                         <FormControl>
@@ -126,7 +113,7 @@ function SignInPage() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="mb-1 text-base text-text">
+                        <FormLabel className="mb-3 text-base text-text">
                           Password
                         </FormLabel>
                         <FormControl>
@@ -143,74 +130,16 @@ function SignInPage() {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="mb-1 text-base text-text">
-                          Name
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            className="!bg-transparent focus:!outline-none border-l-0 border-t-0 border-r-0 !border-b !border-[#817C73] !rounded-none focus-visible:outline-ring-0 focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-[#A19888] pb-4"
-                            type="text"
-                            placeholder="enter your full name"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="mb-1 text-base text-text">
-                          Phone Number
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            className="!bg-transparent focus:!outline-none border-l-0 border-t-0 border-r-0 !border-b !border-[#817C73] !rounded-none focus-visible:outline-ring-0 focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-[#A19888] pb-4"
-                            type="tel"
-                            placeholder="enter your number"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[#A19888] text-sm">
-                      We will send you an email to verify your email address.
-                    </p>
-
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        required
-                        className="h-4 w-4 border-[#817C73] rounded-none"
-                        id="terms-2"
-                      />
-                      <div className="grid gap-2">
-                        <Label
-                          htmlFor="terms-2"
-                          className="text-sm text-[#736C5F]"
-                        >
-                          i accept the{" "}
-                          <Link href="/privacy-policy" className="underline">
-                            privacy policy statement
-                          </Link>
-                        </Label>
-                      </div>
-                    </div>
-                  </div>
+                  <p className="text-base">
+                    <span className="text-[#A19888]">New on our platform?</span>{" "}
+                    <Link href="/signup" className="text-text hover:underline ">
+                      Create an account
+                    </Link>
+                  </p>
                   <ButtonLoading
                     loading={loading}
                     type="submit"
-                    text="create account"
+                    text="log in"
                     className="bg-transparent w-fit lumin text-text text-3xl shadow-none border-0 hover:bg-transparent hover:shadow-none focus-visible:outline-ring-0 focus-visible:ring-offset-0 focus-visible:ring-transparent p-0 leading-0 h-0 cursor-pointer mt-2 hover:text-black hover:scale-110 transition-all duration-300 ease-in-out"
                   />
                 </form>
@@ -223,4 +152,4 @@ function SignInPage() {
   );
 }
 
-export default SignInPage;
+export default LogInPage;
