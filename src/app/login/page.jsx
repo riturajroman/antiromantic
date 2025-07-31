@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
 import { ButtonLoading } from "@/components/application/ButtonLoading";
+import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -25,29 +26,43 @@ import { useRouter } from "next/navigation";
 function LogInPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { checkAuth } = useAuth();
 
   const formSchema = userSchema.pick({
-    username: true,
     email: true,
     password: true,
-    phone: true,
   });
 
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      username: "",
       email: "",
       password: "",
-      phone: "",
     },
   });
 
-  async function signupHandler(data) {
-    console.log("Form Data:", data);
+  async function loginHandler(data) {
+    console.log("Login Data:", data);
     try {
       setLoading(true);
+      const loginResponse = await axios.post("/api/auth/login", data);
+
+      if (loginResponse.data.success) {
+        toast.success("Login successful!");
+        form.reset();
+        // Refresh auth context to get user data
+        await checkAuth();
+        // Redirect to home page
+        router.push("/");
+      } else {
+        toast.error(loginResponse.data.message || "Login failed");
+      }
     } catch (error) {
+      if (error.response && error.response.data) {
+        toast.error(error.response.data.message || "Login failed");
+      } else {
+        toast.error(error.message || "Something went wrong");
+      }
     } finally {
       setLoading(false);
     }
@@ -80,12 +95,12 @@ function LogInPage() {
               <h2 className="text-text text-2xl lg:text-3xl">
                 Tailored Access, Just for You
               </h2>
-              <p className="text-text text-sm">Please signin to your account</p>
+              <p className="text-text text-sm">Please login to your account</p>
             </div>
             <div>
               <Form {...form}>
                 <form
-                  onSubmit={form.handleSubmit(signupHandler)}
+                  onSubmit={form.handleSubmit(loginHandler)}
                   className="flex flex-col gap-8"
                 >
                   <FormField
@@ -132,7 +147,7 @@ function LogInPage() {
                   />
                   <p className="text-base">
                     <span className="text-[#A19888]">New on our platform?</span>{" "}
-                    <Link href="/signup" className="text-text hover:underline ">
+                    <Link href="/signin" className="text-text hover:underline ">
                       Create an account
                     </Link>
                   </p>

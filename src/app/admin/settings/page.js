@@ -22,7 +22,6 @@ import {
   Save,
   Globe,
   Package,
-  User,
   Lock,
   LogOut,
   Mail,
@@ -39,18 +38,6 @@ import {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
-    // Admin Profile Info
-    adminName: "Admin User",
-    adminEmail: "admin@antiromantic.com",
-    adminPhone: "+91 98765 43210",
-    adminJoinDate: "",
-    adminAddress: "",
-    adminCity: "",
-    adminState: "",
-    adminPincode: "",
-    adminEmergencyContact: "",
-    adminBio: "",
-
     // Store Info
     storeName: "AntiRomantic",
     storeEmail: "support@antiromantic.com",
@@ -85,7 +72,7 @@ export default function SettingsPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [isModified, setIsModified] = useState(false);
   const [editingSection, setEditingSection] = useState(null);
-  const [activeTab, setActiveTab] = useState("personal");
+  const [activeTab, setActiveTab] = useState("store");
 
   // Load settings on component mount
   useEffect(() => {
@@ -117,11 +104,27 @@ export default function SettingsPage() {
     }
   }, [successMessage]);
 
+  // Clear errors after timeout (except validation errors)
+  useEffect(() => {
+    if (
+      errors.general &&
+      !Object.keys(errors).some((key) => key !== "general")
+    ) {
+      const timer = setTimeout(() => {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors.general;
+          return newErrors;
+        });
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [errors]);
+
   const validateField = (field, value) => {
     const newErrors = { ...errors };
 
     switch (field) {
-      case "adminEmail":
       case "storeEmail":
         if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
           newErrors[field] = "Please enter a valid email address";
@@ -129,7 +132,6 @@ export default function SettingsPage() {
           delete newErrors[field];
         }
         break;
-      case "adminPhone":
       case "storePhone":
         if (value && !/^[+]?[\d\s()-]{10,}$/.test(value)) {
           newErrors[field] = "Please enter a valid phone number";
@@ -137,7 +139,6 @@ export default function SettingsPage() {
           delete newErrors[field];
         }
         break;
-      case "adminPincode":
       case "storePincode":
         if (value && !/^\d{6}$/.test(value)) {
           newErrors[field] = "Please enter a valid 6-digit pincode";
@@ -181,9 +182,6 @@ export default function SettingsPage() {
     let fieldsToValidate = [];
 
     switch (section) {
-      case "personal":
-        fieldsToValidate = ["adminName", "adminEmail", "adminPhone"];
-        break;
       case "store":
         fieldsToValidate = [
           "storeName",
@@ -202,7 +200,8 @@ export default function SettingsPage() {
 
     let hasErrors = false;
     fieldsToValidate.forEach((field) => {
-      if (!validateField(field, settings[field])) {
+      const isValid = validateField(field, settings[field]);
+      if (!isValid) {
         hasErrors = true;
       }
     });
@@ -218,6 +217,11 @@ export default function SettingsPage() {
     setLoading(true);
     setErrors({});
 
+    // Only log in development
+    if (process.env.NODE_ENV === "development") {
+      console.log("Frontend sending data:", { section, data: settings });
+    }
+
     try {
       const response = await fetch("/api/admin/settings", {
         method: "PUT",
@@ -226,6 +230,11 @@ export default function SettingsPage() {
       });
 
       const result = await response.json();
+
+      // Only log in development
+      if (process.env.NODE_ENV === "development") {
+        console.log("API Response:", result);
+      }
 
       if (result.success) {
         setSuccessMessage(
@@ -236,11 +245,50 @@ export default function SettingsPage() {
         setIsModified(false);
         setEditingSection(null);
       } else {
-        throw new Error(result.error || "Failed to save settings");
+        // Only log in development
+        if (process.env.NODE_ENV === "development") {
+          console.error("API Error:", result.error);
+          console.error("Validation Errors:", result.validationErrors);
+        }
+
+        // Handle specific validation errors
+        if (
+          result.validationErrors &&
+          Object.keys(result.validationErrors).length > 0
+        ) {
+          // Set field-specific validation errors
+          setErrors((prev) => ({
+            ...prev,
+            ...result.validationErrors,
+            general: "Please fix the validation errors below before saving.",
+          }));
+        } else {
+          // Handle general API errors
+          setErrors({
+            general:
+              result.error || "Failed to save settings. Please try again.",
+          });
+        }
+        return; // Don't throw error, we've handled it gracefully
       }
     } catch (error) {
       console.error("Error saving settings:", error);
-      setErrors({ general: "Failed to save settings. Please try again." });
+
+      // Handle network errors vs API errors
+      if (error.name === "TypeError" || error.message.includes("fetch")) {
+        setErrors({
+          general: "Network error. Please check your connection and try again.",
+        });
+      } else if (error.message.includes("Validation failed")) {
+        setErrors({
+          general: "Please check all required fields and try again.",
+        });
+      } else {
+        setErrors({
+          general:
+            error.message || "An unexpected error occurred. Please try again.",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -261,14 +309,18 @@ export default function SettingsPage() {
     setSettings((prev) => ({ ...prev, [field]: value }));
     setIsModified(true);
 
-    // Clear previous error for this field
+    // Clear previous error for this field when user starts typing
     if (errors[field]) {
       const newErrors = { ...errors };
       delete newErrors[field];
+      // Also clear general error if this was the last field error
+      if (Object.keys(newErrors).length === 1 && newErrors.general) {
+        delete newErrors.general;
+      }
       setErrors(newErrors);
     }
 
-    // Validate on change for better UX
+    // Validate on change for better UX (debounced)
     setTimeout(() => validateField(field, value), 500);
   };
 
@@ -354,10 +406,12 @@ export default function SettingsPage() {
   const renderFieldError = (fieldName) => {
     if (errors[fieldName]) {
       return (
-        <p className="text-sm text-red-500 mt-1 flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          {errors[fieldName]}
-        </p>
+        <div className="mt-1 animate-in fade-in duration-200">
+          <p className="text-sm text-red-600 flex items-center gap-1 bg-red-50 px-2 py-1 rounded border border-red-200">
+            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+            {errors[fieldName]}
+          </p>
+        </div>
       );
     }
     return null;
@@ -374,16 +428,25 @@ export default function SettingsPage() {
 
       {/* Global Messages */}
       {errors.general && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="border-red-200 bg-red-50">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{errors.general}</AlertDescription>
+          <AlertDescription className="font-medium">
+            {errors.general}
+            {Object.keys(errors).length > 1 && (
+              <div className="mt-2 text-sm text-red-600">
+                Please check the highlighted fields below.
+              </div>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
       {successMessage && (
-        <Alert className="border-slate-500 text-slate-700 bg-slate-50">
-          <CheckCircle className="h-4 w-4 text-slate-600" />
-          <AlertDescription>{successMessage}</AlertDescription>
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="font-medium">
+            {successMessage}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -397,12 +460,6 @@ export default function SettingsPage() {
                 <SelectTrigger className="w-full h-12 bg-muted border-slate-300">
                   <SelectValue>
                     <div className="flex items-center gap-2">
-                      {activeTab === "personal" && (
-                        <>
-                          <User className="h-4 w-4" />
-                          Personal Information
-                        </>
-                      )}
                       {activeTab === "store" && (
                         <>
                           <Store className="h-4 w-4" />
@@ -437,12 +494,6 @@ export default function SettingsPage() {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Personal Information
-                    </div>
-                  </SelectItem>
                   <SelectItem value="store">
                     <div className="flex items-center gap-2">
                       <Store className="h-4 w-4" />
@@ -480,14 +531,7 @@ export default function SettingsPage() {
 
           {/* Tablet: 2x3 grid */}
           <div className="hidden md:block lg:hidden">
-            <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-2 bg-muted rounded-lg">
-              <TabsTrigger
-                value="personal"
-                className="flex items-center gap-2 py-3 text-sm"
-              >
-                <User className="h-4 w-4" />
-                Personal
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 gap-2 h-auto p-2 bg-muted rounded-lg">
               <TabsTrigger
                 value="store"
                 className="flex items-center gap-2 py-3 text-sm"
@@ -528,14 +572,7 @@ export default function SettingsPage() {
 
           {/* Desktop: Single row */}
           <div className="hidden lg:block">
-            <TabsList className="grid w-full grid-cols-6 h-auto p-2 bg-muted rounded-lg">
-              <TabsTrigger
-                value="personal"
-                className="flex items-center gap-2 py-3"
-              >
-                <User className="h-4 w-4" />
-                Personal
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 h-auto p-2 bg-muted rounded-lg">
               <TabsTrigger
                 value="store"
                 className="flex items-center gap-2 py-3"
@@ -574,378 +611,6 @@ export default function SettingsPage() {
             </TabsList>
           </div>
         </div>{" "}
-        {/* Personal Information Tab */}
-        <TabsContent value="personal">
-          <Card className="bg-gradient-to-br from-slate-50 to-gray-50 border-slate-200">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-4">
-              <div className="space-y-1">
-                <CardTitle className="flex items-center gap-3 text-slate-800 text-lg md:text-xl">
-                  <div className="p-2 bg-slate-100 rounded-lg">
-                    <User className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
-                  </div>
-                  Personal Information
-                </CardTitle>
-                <p className="text-slate-600 text-sm">
-                  Manage your personal details and contact information
-                </p>
-              </div>
-              {editingSection !== "personal" && (
-                <Button
-                  onClick={() => handleEditSection("personal")}
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-300 text-slate-700 hover:bg-slate-100 w-full sm:w-auto"
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Edit Details
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4 md:space-y-6">
-              {editingSection === "personal" ? (
-                // Edit Mode
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="adminName"
-                        className="text-sm font-medium"
-                      >
-                        Full Name *
-                      </Label>
-                      <Input
-                        id="adminName"
-                        value={settings.adminName}
-                        onChange={(e) =>
-                          handleInputChange("adminName", e.target.value)
-                        }
-                        placeholder="Enter your full name"
-                        className={errors.adminName ? "border-red-500" : ""}
-                      />
-                      {renderFieldError("adminName")}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="adminEmail"
-                        className="text-sm font-medium"
-                      >
-                        Email Address *
-                      </Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="adminEmail"
-                          type="email"
-                          value={settings.adminEmail}
-                          onChange={(e) =>
-                            handleInputChange("adminEmail", e.target.value)
-                          }
-                          placeholder="admin@antiromantic.com"
-                          className={`pl-10 ${
-                            errors.adminEmail ? "border-red-500" : ""
-                          }`}
-                        />
-                      </div>
-                      {renderFieldError("adminEmail")}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="adminPhone"
-                        className="text-sm font-medium"
-                      >
-                        Phone Number *
-                      </Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="adminPhone"
-                          value={settings.adminPhone}
-                          onChange={(e) =>
-                            handleInputChange("adminPhone", e.target.value)
-                          }
-                          placeholder="+91 98765 43210"
-                          className={`pl-10 ${
-                            errors.adminPhone ? "border-red-500" : ""
-                          }`}
-                        />
-                      </div>
-                      {renderFieldError("adminPhone")}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="adminJoinDate"
-                        className="text-sm font-medium"
-                      >
-                        Join Date
-                      </Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="adminJoinDate"
-                          type="date"
-                          value={settings.adminJoinDate}
-                          onChange={(e) =>
-                            handleInputChange("adminJoinDate", e.target.value)
-                          }
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="adminEmergencyContact"
-                        className="text-sm font-medium"
-                      >
-                        Emergency Contact
-                      </Label>
-                      <Input
-                        id="adminEmergencyContact"
-                        value={settings.adminEmergencyContact}
-                        onChange={(e) =>
-                          handleInputChange(
-                            "adminEmergencyContact",
-                            e.target.value
-                          )
-                        }
-                        placeholder="+91 98765 43210"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Address Section */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-muted-foreground">
-                      Address Information
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="md:col-span-2 space-y-2">
-                        <Label
-                          htmlFor="adminAddress"
-                          className="text-sm font-medium"
-                        >
-                          Address
-                        </Label>
-                        <div className="relative">
-                          <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="adminAddress"
-                            value={settings.adminAddress}
-                            onChange={(e) =>
-                              handleInputChange("adminAddress", e.target.value)
-                            }
-                            placeholder="Enter complete address"
-                            className="pl-10"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="adminCity"
-                          className="text-sm font-medium"
-                        >
-                          City
-                        </Label>
-                        <Input
-                          id="adminCity"
-                          value={settings.adminCity}
-                          onChange={(e) =>
-                            handleInputChange("adminCity", e.target.value)
-                          }
-                          placeholder="Enter city"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="adminState"
-                          className="text-sm font-medium"
-                        >
-                          State
-                        </Label>
-                        <Input
-                          id="adminState"
-                          value={settings.adminState}
-                          onChange={(e) =>
-                            handleInputChange("adminState", e.target.value)
-                          }
-                          placeholder="Enter state"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="adminPincode"
-                          className="text-sm font-medium"
-                        >
-                          Pincode
-                        </Label>
-                        <Input
-                          id="adminPincode"
-                          value={settings.adminPincode}
-                          onChange={(e) =>
-                            handleInputChange("adminPincode", e.target.value)
-                          }
-                          placeholder="400001"
-                          maxLength={6}
-                          className={
-                            errors.adminPincode ? "border-red-500" : ""
-                          }
-                        />
-                        {renderFieldError("adminPincode")}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bio */}
-                  <div className="space-y-2">
-                    <Label htmlFor="adminBio" className="text-sm font-medium">
-                      Bio/Notes
-                    </Label>
-                    <Textarea
-                      id="adminBio"
-                      value={settings.adminBio}
-                      onChange={(e) =>
-                        handleInputChange("adminBio", e.target.value)
-                      }
-                      placeholder="Brief description about yourself or any important notes..."
-                      className="min-h-[80px]"
-                    />
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                    <Button
-                      onClick={() => handleSaveSection("personal")}
-                      disabled={loading}
-                      className="bg-slate-600 hover:bg-slate-700 w-full sm:w-auto"
-                    >
-                      <Save className="h-4 w-4 mr-2" />
-                      {loading ? "Saving..." : "Save Changes"}
-                    </Button>
-                    <Button
-                      onClick={handleCancelEdit}
-                      variant="outline"
-                      className="border-gray-300 w-full sm:w-auto"
-                    >
-                      <X className="h-4 w-4 mr-2" />
-                      Cancel
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                // View Mode
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-600">
-                        Full Name
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-slate-600" />
-                        <span className="text-gray-900 font-medium">
-                          {settings.adminName || "Not set"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-600">
-                        Email Address
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-slate-600" />
-                        <span className="text-gray-900 font-medium">
-                          {settings.adminEmail || "Not set"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-600">
-                        Phone Number
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-slate-600" />
-                        <span className="text-gray-900 font-medium">
-                          {settings.adminPhone || "Not set"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-600">
-                        Join Date
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-slate-600" />
-                        <span className="text-gray-900 font-medium">
-                          {settings.adminJoinDate || "Not set"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-600">
-                        Emergency Contact
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-slate-600" />
-                        <span className="text-gray-900 font-medium">
-                          {settings.adminEmergencyContact || "Not set"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {(settings.adminAddress ||
-                    settings.adminCity ||
-                    settings.adminState ||
-                    settings.adminPincode) && (
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-gray-600">
-                        Address Information
-                      </h4>
-                      <div className="bg-white p-4 rounded-lg border border-blue-100">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 text-slate-600 mt-1" />
-                          <div>
-                            <p className="text-gray-900 font-medium">
-                              {settings.adminAddress}
-                            </p>
-                            <p className="text-gray-600 text-sm">
-                              {[
-                                settings.adminCity,
-                                settings.adminState,
-                                settings.adminPincode,
-                              ]
-                                .filter(Boolean)
-                                .join(", ")}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {settings.adminBio && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-600">
-                        Bio/Notes
-                      </Label>
-                      <div className="bg-white p-4 rounded-lg border border-blue-100">
-                        <p className="text-gray-900">{settings.adminBio}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
         {/* Store Information Tab */}
         <TabsContent value="store">
           <Card className="bg-gradient-to-br from-slate-50 to-gray-50 border-slate-200">
@@ -992,7 +657,11 @@ export default function SettingsPage() {
                           handleInputChange("storeName", e.target.value)
                         }
                         placeholder="Enter store name"
-                        className={errors.storeName ? "border-red-500" : ""}
+                        className={
+                          errors.storeName
+                            ? "border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                            : "focus:border-slate-500 focus:ring-slate-500"
+                        }
                       />
                       {renderFieldError("storeName")}
                     </div>
@@ -1015,7 +684,9 @@ export default function SettingsPage() {
                           }
                           placeholder="support@antiromantic.com"
                           className={`pl-10 ${
-                            errors.storeEmail ? "border-red-500" : ""
+                            errors.storeEmail
+                              ? "border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                              : "focus:border-slate-500 focus:ring-slate-500"
                           }`}
                         />
                       </div>
@@ -1039,7 +710,9 @@ export default function SettingsPage() {
                           }
                           placeholder="+91 98765 43210"
                           className={`pl-10 ${
-                            errors.storePhone ? "border-red-500" : ""
+                            errors.storePhone
+                              ? "border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-500"
+                              : "focus:border-slate-500 focus:ring-slate-500"
                           }`}
                         />
                       </div>
@@ -1229,15 +902,25 @@ export default function SettingsPage() {
                     <Button
                       onClick={() => handleSaveSection("store")}
                       disabled={loading}
-                      className="bg-slate-600 hover:bg-slate-700 w-full sm:w-auto"
+                      className="bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
                     </Button>
                     <Button
                       onClick={handleCancelEdit}
                       variant="outline"
-                      className="border-gray-300 w-full sm:w-auto"
+                      disabled={loading}
+                      className="border-gray-300 disabled:opacity-50 w-full sm:w-auto"
                     >
                       <X className="h-4 w-4 mr-2" />
                       Cancel
@@ -1467,15 +1150,25 @@ export default function SettingsPage() {
                     <Button
                       onClick={() => handleSaveSection("shipping")}
                       disabled={loading}
-                      className="bg-slate-600 hover:bg-slate-700 w-full sm:w-auto"
+                      className="bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
                     </Button>
                     <Button
                       onClick={handleCancelEdit}
                       variant="outline"
-                      className="border-gray-300 w-full sm:w-auto"
+                      disabled={loading}
+                      className="border-gray-300 disabled:opacity-50 w-full sm:w-auto"
                     >
                       <X className="h-4 w-4 mr-2" />
                       Cancel
@@ -1607,15 +1300,25 @@ export default function SettingsPage() {
                     <Button
                       onClick={() => handleSaveSection("general")}
                       disabled={loading}
-                      className="bg-slate-600 hover:bg-slate-700 w-full sm:w-auto"
+                      className="bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
                     </Button>
                     <Button
                       onClick={handleCancelEdit}
                       variant="outline"
-                      className="border-gray-300 w-full sm:w-auto"
+                      disabled={loading}
+                      className="border-gray-300 disabled:opacity-50 w-full sm:w-auto"
                     >
                       <X className="h-4 w-4 mr-2" />
                       Cancel

@@ -20,11 +20,13 @@ import Link from "next/link";
 import { ButtonLoading } from "@/components/application/ButtonLoading";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
+
+import { OTPVerificationModal } from "@/components/auth/OTPVerificationModal";
 
 function SignInPage() {
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
 
   const formSchema = userSchema.pick({
     username: true,
@@ -44,7 +46,6 @@ function SignInPage() {
   });
 
   async function signupHandler(data) {
-    console.log("Form Data:", data);
     try {
       setLoading(true);
       const signInResponse = await axios.post(`/api/signin`, data);
@@ -54,7 +55,8 @@ function SignInPage() {
       form.reset();
       toast.success("Account created successfully!");
       toast.success("Please verify your email");
-      router.push(`/verify-otp?email=${data.email}`);
+      setUserEmail(data.email);
+      setOtpModalOpen(true);
     } catch (error) {
       if (error.response && error.response.data) {
         toast.error(error.response.data.message || "Registration failed");
@@ -219,6 +221,12 @@ function SignInPage() {
           </div>
         </div>
       </div>
+      {/* OTP Verification Modal */}
+      <OTPVerificationModal
+        isOpen={otpModalOpen}
+        onOpenChange={setOtpModalOpen}
+        email={userEmail}
+      />
     </section>
   );
 }

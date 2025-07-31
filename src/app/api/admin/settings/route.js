@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import PersonalSettings from "@/models/PersonalSettings";
 import StoreSettings from "@/models/StoreSettings";
 import ShippingSettings from "@/models/ShippingSettings";
 import GeneralSettings from "@/models/GeneralSettings";
@@ -35,29 +34,6 @@ const validateSettings = (data, section = "all") => {
   const errors = {};
 
   // Section-specific validation
-  if (section === "all" || section === "personal") {
-    // Required fields validation for personal section
-    if (!data.adminName?.trim()) {
-      errors.adminName = "Admin name is required";
-    }
-
-    if (!data.adminEmail?.trim()) {
-      errors.adminEmail = "Admin email is required";
-    } else if (!validateEmail(data.adminEmail)) {
-      errors.adminEmail = "Please enter a valid admin email address";
-    }
-
-    if (!data.adminPhone?.trim()) {
-      errors.adminPhone = "Admin phone is required";
-    } else if (!validatePhone(data.adminPhone)) {
-      errors.adminPhone = "Please enter a valid phone number";
-    }
-
-    if (data.adminState && !data.adminState.trim()) {
-      errors.adminState = "State is required if provided";
-    }
-  }
-
   if (section === "all" || section === "store") {
     if (!data.storeName?.trim()) {
       errors.storeName = "Store name is required";
@@ -91,9 +67,8 @@ const validateSettings = (data, section = "all") => {
       errors.panNumber = "Please enter a valid PAN number";
     }
 
-    if (data.storeState && !data.storeState.trim()) {
-      errors.storeState = "State is required if provided";
-    }
+    // Remove problematic storeState validation that was causing issues
+    // State is optional and can be empty
   }
 
   if (section === "all" || section === "shipping") {
@@ -118,9 +93,8 @@ export async function GET() {
     await connectDB();
 
     // Get settings from separate models
-    const [personalSettings, storeSettings, shippingSettings, generalSettings] =
+    const [storeSettings, shippingSettings, generalSettings] =
       await Promise.all([
-        PersonalSettings.findOne(),
         StoreSettings.findOne(),
         ShippingSettings.findOne(),
         GeneralSettings.findOne(),
@@ -128,18 +102,6 @@ export async function GET() {
 
     // Combine all settings or return defaults
     const combinedSettings = {
-      // Personal Settings
-      adminName: personalSettings?.adminName || "Admin User",
-      adminEmail: personalSettings?.adminEmail || "admin@antiromantic.com",
-      adminPhone: personalSettings?.adminPhone || "+91 98765 43210",
-      adminJoinDate: personalSettings?.adminJoinDate || "",
-      adminAddress: personalSettings?.adminAddress || "",
-      adminCity: personalSettings?.adminCity || "",
-      adminState: personalSettings?.adminState || "",
-      adminPincode: personalSettings?.adminPincode || "",
-      adminEmergencyContact: personalSettings?.adminEmergencyContact || "",
-      adminBio: personalSettings?.adminBio || "",
-
       // Store Settings
       storeName: storeSettings?.storeName || "AntiRomantic",
       storeEmail: storeSettings?.storeEmail || "support@antiromantic.com",
@@ -201,17 +163,23 @@ export async function PUT(request) {
 
     // Validate the settings data based on section
     const validationErrors = validateSettings(data, section);
+
     if (Object.keys(validationErrors).length > 0) {
+      console.log("Validation failed for section:", section);
+      console.log("Validation errors:", validationErrors);
+
       return NextResponse.json(
         {
           success: false,
-          error: "Validation failed",
+          error: "Validation failed. Please check the fields and try again.",
           validationErrors,
+          details: `${
+            Object.keys(validationErrors).length
+          } field(s) failed validation`,
         },
         { status: 400 }
       );
     }
-
     await connectDB();
 
     let updatedSettings;
@@ -219,27 +187,6 @@ export async function PUT(request) {
 
     // Save to appropriate model based on section
     switch (section) {
-      case "personal":
-        const personalData = {
-          adminName: data.adminName,
-          adminEmail: data.adminEmail,
-          adminPhone: data.adminPhone,
-          adminJoinDate: data.adminJoinDate || "",
-          adminAddress: data.adminAddress || "",
-          adminCity: data.adminCity || "",
-          adminState: data.adminState || "",
-          adminPincode: data.adminPincode || "",
-          adminEmergencyContact: data.adminEmergencyContact || "",
-          adminBio: data.adminBio || "",
-        };
-        updatedSettings = await PersonalSettings.findOneAndUpdate(
-          {},
-          personalData,
-          { upsert: true, new: true, runValidators: true }
-        );
-        message = "Personal settings updated successfully";
-        break;
-
       case "store":
         const storeData = {
           storeName: data.storeName,
