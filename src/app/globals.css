@@ -16,6 +16,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Custom breakpoint for x1280 */
+@media (min-width: 1270px) and (max-width: 1430px) {
+  .x1280 {
+    width: 85%;
+  }
+}
+
+@media only screen and (min-width: 1900px) {
+  .right-class {
+    right: 25%;
+  }
+}
+@media only screen and (min-width: 2350px) {
+  .right-class {
+    right: 35%;
+  }
+}
+
 :root {
   --font-arboria: "Arboria", sans-serif;
   --font-luminaire: "Luminaire", serif;
@@ -64,24 +82,18 @@ body {
   margin: 0 auto;
 }
 
-@media only screen and (max-width: 1440px) {
-  .container {
-    padding: 0 40px;
-  }
-}
-
-@media only screen and (max-width: 1024px) {
-  .container {
-    padding: 0 10px;
-  }
-}
-
 .arboria {
   font-family: var(--font-arboria);
 }
 
 .lumin {
   font-family: var(--font-luminaire);
+}
+
+header.scrolled {
+  background-color: #ffffff84;
+  backdrop-filter: blur(10px);
+  transition: background-color 0.3s ease;
 }
 
 @theme inline {
