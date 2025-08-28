@@ -3,6 +3,7 @@
 import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import Menu from "./Menu";
+import AuthSection from "./auth/AuthSection";
 
 function Header({ textcolor = "#F7F5EB" }) {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -58,13 +59,9 @@ function Header({ textcolor = "#F7F5EB" }) {
               >
                 cart(0)
               </button>
-              <button
-                className={`text-[${
-                  isScrolled ? "#F7F5EB" : textcolor
-                }] text-[12px] md:text-lg cursor-pointer`}
-              >
-                sign in
-              </button>
+
+              {/* Authentication Section - All functionality extracted to separate component */}
+              <AuthSection textColor={textcolor} isScrolled={isScrolled} />
             </div>
           </div>
         </div>
